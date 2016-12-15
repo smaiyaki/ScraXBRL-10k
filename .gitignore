@@ -4,4 +4,5 @@
 *.pyc
 *.egg-info
 .DS_Store
-
+/data/extracted_data
+/data/raw_data
