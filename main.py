@@ -18,29 +18,29 @@ import pyvmmonitor
 # pyvmmonitor.connect()
 
 class ScrapeAndExtract:
-    
+
     def __init__(self):
-        
+
         #Scrape Section
         self.stock_lists = os.listdir(settings.STOCK_EXCHANGE_LIST_PATH)
         self.symbol_keys = []
         self.scraped_keys = None
         self.finished = False
-        
+
         #Extract Section
         self.extracted_keys = None
         self.to_extract = queue.Queue()
-        
+
         self.populate_symbol_keys()
         self.get_all_keys()
-    
+
     def populate_symbol_keys(self):
         for xlist in self.stock_lists:
             f = pd.read_csv('{0}/{1}'.format(settings.STOCK_EXCHANGE_LIST_PATH, xlist))
             for symbol in f[f.columns[0]]:
                 if symbol not in self.symbol_keys:
                     self.symbol_keys.append(symbol)
-    
+
     def get_all_keys(self):
         scraped_data_log = pickle.load(open(settings.SCRAPE_LOG_FILE_PATH, "rb"))
         self.scraped_keys = list(scraped_data_log.keys())
@@ -51,7 +51,7 @@ class ScrapeAndExtract:
         to_extract = list(sk_set - ek_set)
         for te in to_extract:
             self.to_extract.put(te)
-    
+
     @staticmethod
     def extract_xml(symbol):
         q_path = "{0}/{1}/xml/{2}".format(settings.RAW_DATA_PATH, symbol, '10-Q')
@@ -147,18 +147,18 @@ class ScrapeAndExtract:
             logs.add_scrape_data(symbol, soe_success_data, True)
         else:
             logs.add_scrape_data(symbol, None, True)
-        
+
     def scrape_list(self):
         """Scrape all symbols in list."""
 
         for symbol in self.symbol_keys:
             if symbol in self.scraped_keys:
                 continue
-            self.scrape_symbol(symbol)			
+            self.scrape_symbol(symbol)
             self.scraped_keys.append(symbol)
             self.to_extract.put(symbol)
         self.finished = True
-    
+
     def extract_all(self):
         while not self.finished:
             if self.to_extract.qsize() > 0:
