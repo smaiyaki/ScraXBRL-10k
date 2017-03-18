@@ -1,17 +1,19 @@
-import settings
-import EdgarScrape
-import XMLExtract
 import os
-import threading
-import queue
-import time
-import requests
-import sys
 import pickle
-import logs
-import pandas as pd
-
+import queue
 import sys
+import threading
+import time
+
+import pandas as pd
+import requests
+
+import EdgarScrape
+import logs
+import settings
+import XMLExtract
+
+
 # sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
 # import pyvmmonitor
 # @pyvmmonitor.profile_method
@@ -205,10 +207,3 @@ def run_main():
 
 if __name__ == '__main__':
     run_main()
-
-
-
-
-
-
-
