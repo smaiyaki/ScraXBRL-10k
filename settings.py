@@ -35,7 +35,7 @@ EXTRACT_LOG_FILE_PATH = "{0}/{1}.{2}".format(MAIN_LOG_DIR, EXTRACT_LOG_FILE, LOG
 
 #Scrape List Locations
 MAIN_SCRAPE_LIST_DIR = 'scrape_lists'
-STOCK_EXCHANGE_LIST_DIR = 'stock_exchanges_test'
+STOCK_EXCHANGE_LIST_DIR = 'stock_exchanges'
 
 #Xbrl
 XBRL_TAXONOMY_LIST_DIR = 'xbrl_taxonomy'

@@ -12,9 +12,9 @@ import logs
 import pandas as pd
 
 import sys
-sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
-import pyvmmonitor
-@pyvmmonitor.profile_method
+# sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
+# import pyvmmonitor
+# @pyvmmonitor.profile_method
 # pyvmmonitor.connect()
 
 class ScrapeAndExtract:
@@ -35,6 +35,7 @@ class ScrapeAndExtract:
         self.get_all_keys()
 
     def populate_symbol_keys(self):
+        '''Grab all the keys from file'''
         for xlist in self.stock_lists:
             f = pd.read_csv('{0}/{1}'.format(settings.STOCK_EXCHANGE_LIST_PATH, xlist))
             for symbol in f[f.columns[0]]:
@@ -150,7 +151,6 @@ class ScrapeAndExtract:
 
     def scrape_list(self):
         """Scrape all symbols in list."""
-
         for symbol in self.symbol_keys:
             if symbol in self.scraped_keys:
                 continue

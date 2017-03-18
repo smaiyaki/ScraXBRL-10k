@@ -156,7 +156,7 @@ class GetFilings:
                 return False
         except IndexError:
             return False
-
+# TODO DOnt need this
     def get_txt(self, html):
         s = BS(html, "lxml")
         try:
@@ -186,7 +186,10 @@ class GetFilings:
         except IndexError:
             return False
 
+    # TODO Fix this 
+    
     def get_date(self, html):
+        # TODO Fix this unnecessary double calling of the soup
         s = BS(html, "lxml")
         try:
             date = s.find_all('div', {'class': 'formGrouping'})[
@@ -194,7 +197,7 @@ class GetFilings:
             return date
         except (IndexError, AttributeError):
             return False
-
+    # TODO Dont need any of this
     def get_all_10q(self):
         if len(self.filings['10q_list']) == 0:
             try:
@@ -210,9 +213,11 @@ class GetFilings:
             # print('requesting from: ' + str(link_val))
             r = requests.get(link_val)
             html_txt = r.text
+            # TODO Here get rid of this
             date = self.get_date(html_txt) # SLOW
             dates.append(date)
             success[date] = []
+            # TODO DOnt need this
             if settings.GET_XML:
                 for i in range(1, 7):
                     link_xml = self.get_xml_file(html_txt, i)
@@ -244,6 +249,7 @@ class GetFilings:
                     except (KeyError, AttributeError):
                         errors[date] = []
                         errors[date].append('html')
+            # TODO Dont need this
             if settings.GET_TXT:
                 link_txt = self.get_txt(html_txt)
                 if link_txt:
@@ -259,6 +265,7 @@ class GetFilings:
                     except (KeyError, AttributeError):
                         errors[date] = []
                         errors[date].append('txt')
+        # TODO Dont need this either
         if settings.GET_XL:
             count = 0
             for link_val in self.filings['10q_xl_list']:
@@ -287,6 +294,7 @@ class GetFilings:
             self.filings['success']['count'] += 1
             self.filings['success']['10-Q'] = success
 
+    
     def get_all_10k(self):
         if len(self.filings['10k_list']) == 0:
             try:
@@ -335,6 +343,7 @@ class GetFilings:
                     except (KeyError, AttributeError):
                         errors[date] = []
                         errors[date].append('html')
+
             if settings.GET_TXT:
                 link_txt = self.get_txt(html_txt)
                 if link_txt:
