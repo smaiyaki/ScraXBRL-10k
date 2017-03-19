@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 import LinkURL
 import settings
+import lxml
 
 
 class GetFilings:
@@ -98,7 +99,7 @@ class GetFilings:
     def get_main_html(self, q_or_k):
         link = settings.LINK_URL.format(self.ticker_symbol, q_or_k)
         r = requests.get(link)
-        s = BS(r.text)
+        s = BS(r.text, "lxml")
         if self.validate_page(s):
             return s
         else:
@@ -116,7 +117,7 @@ class GetFilings:
                 self.filings['10k_xl_list'].append(doc_url)
 
     def get_html(self, html):
-        s = BS(html)
+        s = BS(html, "lxml")
         try:
             html_link = s.find_all('table', {'class': 'tableFile', 'summary': 'Document Format Files'})[
                 0].find_all('tr')[1].find('a')['href']
@@ -132,7 +133,7 @@ class GetFilings:
     
     def get_date(self, html):
         # TODO Fix this unnecessary double calling of the soup
-        s = BS(html)
+        s = BS(html, "lxml")
         try:
             date = s.find_all('div', {'class': 'formGrouping'})[
                 1].find_all('div')[1].text
@@ -151,7 +152,8 @@ class GetFilings:
         dates = []
         errors = {}
         success = {}
-        for link_val in tqdm(self.filings['10k_list'], desc="10_klist"):
+        for link_val in self.filings['10k_list']:
+            # for link_val in tqdm(self.filings['10k_list'], desc="10_klist"):
             r = requests.get(link_val)
             html_txt = r.text
             date = self.get_date(html_txt)
@@ -190,7 +192,8 @@ class GetFilings:
     def download_all(self):
         '''Puts download url and target directory into download_queue'''
         if settings.GET_HTML:
-            for link in tqdm(self.filings['10k_html'], desc="10-K"):
+            for link in self.filings['10k_html']:
+            # for link in tqdm(self.filings['10k_html'], desc="10-K"):
                 fname = "{0}_{1}_{2}.html".format(
                     self.ticker_symbol, link[1], link[2])
                 diry = '{0}/{1}/html/10-K/{2}/'.format(

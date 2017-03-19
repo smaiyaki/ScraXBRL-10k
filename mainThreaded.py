@@ -4,22 +4,23 @@ import queue
 import sys
 import threading
 import time
-import queue
+# import XMLExtract
+import urllib
 
 import pandas as pd
 import requests
+import wget
 
 import EdgarScrapeMin
 import logs
 import settings
-import XMLExtract
-import urllib
-import wget
 
-# sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
-# import pyvmmonitor
+import sys
+sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
+import pyvmmonitor
 # @pyvmmonitor.profile_method
-# pyvmmonitor.connect()
+
+pyvmmonitor.connect()
 
 class ScrapeAndExtractThreaded:
 
@@ -88,8 +89,9 @@ class ScrapeAndExtractThreaded:
                 continue
             # self.scrape_symbol(symbol)
             self.symbol_queue.put(symbol)
-            self.scraped_keys.append(symbol)
-            self.to_extract.put(symbol)
+            print("Putting symbol {}".format(symbol))
+            # self.scraped_keys.append(symbol)
+            # self.to_extract.put(symbol)
         self.finished = True
 
 
@@ -130,7 +132,6 @@ def run_main_threaded():
                 print(download_info)
                 download_url, download_path = download_info
                 wget.download(download_url, download_path)
-
                 self.download_queue.task_done()
 
 
@@ -139,14 +140,15 @@ def run_main_threaded():
         t = FilingsThread(symbolqueue, downloadqueue)
         t.setDaemon(True)
         t.start()
+        print("Starting Filings thread #{}".format(i))
 
     for i in range(5):
         dt = DownloadThread(downloadqueue)
         dt.setDaemon(True)
+        print("Starting Download thread #{}".format(i))
         dt.start()
+
     sc.queue_scrape_list()
-
-
 
     symbolqueue.join()
     downloadqueue.join()
