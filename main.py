@@ -4,6 +4,7 @@ import queue
 import sys
 import threading
 import time
+import Queue
 
 import pandas as pd
 import requests
@@ -173,6 +174,7 @@ class ScrapeAndExtract:
 
 scrape_and_extract = ScrapeAndExtract()
 
+
 class ScrapeThread(threading.Thread):
     
     def __init__(self, name):
@@ -204,6 +206,29 @@ def run_main():
     extract_thread.start()
     scrape_thread.join()
     extract_thread.join()
+
+def run_main_threaded():
+    '''Runs the threaded downloader'''
+    sc = ScrapeAndExtract()
+    symbolqueue = Queue.Queue()
+    downloadqueue = Queue.Queue()
+
+    class FilingsThread(threading.Thread):
+        '''Threads the accumulation of filing urls'''
+        def __init__(self, symbol_queue, download_queue):
+            threading.Thread.__init__(self)
+            self.symbol_queue = symbol_queue
+            self.download_queue = download_queue
+
+        def run(self):
+            while True:
+                # Grabs symbol from queue
+                symbol = self.symbol_queue.get()
+                # Runs the symbol scraper to generate download urls and filepath
+                sc.scrape_symbol(symbol)
+
+
+    
 
 if __name__ == '__main__':
     run_main()
