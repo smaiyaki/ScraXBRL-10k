@@ -159,10 +159,11 @@ def run_main_threaded():
     sc.queue_scrape_list()
 
     timestart = datetime.now()
-    print("The game has begun. The time is {}".format(timestart)
+    print("The game has begun. The time is {}".format(timestart))
     symbolqueue.join()
+
     time_symbolqueue_close = datetime.now()
-    print("The Filings Thread Pool has closed sucessfully I hope.... The time is {}".format(time_symbolqueue_close)
+    print("The Filings Thread Pool has closed sucessfully I hope.... The time is {}".format(time_symbolqueue_close))
     downloadqueue.join()
     time_downloadqueue_close = datetime.now()
     print("The download queue has completed successfully. I hope. Everything is actually okay")
