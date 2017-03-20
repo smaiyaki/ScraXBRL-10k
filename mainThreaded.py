@@ -1,3 +1,8 @@
+import sys
+sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
+import pyvmmonitor
+pyvmmonitor.connect()
+
 import os
 import pickle
 import queue
@@ -15,12 +20,12 @@ import EdgarScrapeMin
 import logs
 import settings
 
-import sys
-sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
-import pyvmmonitor
+# import sys
+# sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
+# import pyvmmonitor
 # @pyvmmonitor.profile_method
 
-pyvmmonitor.connect()
+
 
 class ScrapeAndExtractThreaded:
 
@@ -106,9 +111,11 @@ def run_main_threaded():
 
 
     class FilingsThread(threading.Thread):
-        '''Threads the accumulation of filing urls'''
-        def __init__(self, symbol_queue, download_queue):
+        '''Symbol-Scrape EdgarFilings Thread
+        Scrapes sec.gov/edgar for 10-k html filings for specific ticker symbol'''
+        def __init__(self, name, symbol_queue, download_queue):
             threading.Thread.__init__(self)
+            self.name = name
             self.symbol_queue = symbol_queue
             self.download_queue = download_queue
 
@@ -121,29 +128,33 @@ def run_main_threaded():
                 self.symbol_queue.task_done()
 
     class DownloadThread(threading.Thread):
-        '''Downloader Thread'''
-        def __init__(self, download_queue):
+        '''HTML 10-K Downloader Thread'''
+        def __init__(self, name, download_queue):
             threading.Thread.__init__(self)
+            self.name = name
             self.download_queue = download_queue
 
         def run(self):
             while True:
                 download_info = self.download_queue.get()
-                print(download_info)
+                # print(download_info)
                 download_url, download_path = download_info
                 wget.download(download_url, download_path)
                 self.download_queue.task_done()
 
 
-    # Dank time
+    print("Main Thread - Starting Filings Thread Pool")
     for i in range(5):
-        t = FilingsThread(symbolqueue, downloadqueue)
+        filing_thread_name = "FilingThread-[{}]".format(i+1)
+        t = FilingsThread(filing_thread_name, symbolqueue, downloadqueue)
         t.setDaemon(True)
         t.start()
         print("Starting Filings thread #{}".format(i))
 
+    print("Main Thread - Download Thread Pool")
     for i in range(5):
-        dt = DownloadThread(downloadqueue)
+        download_thread_name = "DownloadThread-[{}]".format(i+1)
+        dt = DownloadThread(download_thread_name, downloadqueue)
         dt.setDaemon(True)
         print("Starting Download thread #{}".format(i))
         dt.start()
