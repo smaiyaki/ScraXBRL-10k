@@ -1,7 +1,3 @@
-import sys
-sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
-import pyvmmonitor
-pyvmmonitor.connect()
 
 import os
 import pickle
@@ -19,6 +15,7 @@ import wget
 import EdgarScrapeMin
 import logs
 import settings
+from datetime import datetime
 
 # import sys
 # sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
@@ -161,10 +158,17 @@ def run_main_threaded():
 
     sc.queue_scrape_list()
 
+    timestart = datetime.now()
+    print("The game has begun. The time is {}".format(timestart)
     symbolqueue.join()
+    time_symbolqueue_close = datetime.now()
+    print("The Filings Thread Pool has closed sucessfully I hope.... The time is {}".format(time_symbolqueue_close)
     downloadqueue.join()
-
+    time_downloadqueue_close = datetime.now()
+    print("The download queue has completed successfully. I hope. Everything is actually okay")
+    print("The time is {}".format(time_downloadqueue_close))
+    print("Time elapsed is {}".format(time_downloadqueue_close - timestart))
+    print("Happy pipelining you filthy worms")
 
 if __name__ == '__main__':
     run_main_threaded()
-    # scrape_symbol('ss')
