@@ -49,44 +49,15 @@ class GetFilings:
         self.download_all()
 
     def create_folders(self):
-        if not os.path.exists('{0}/{1}/'.format(settings.RAW_DATA_PATH, self.ticker_symbol)):
+        if not os.path.exists('{0}/{1}/'.format(
+                settings.RAW_DATA_PATH, self.ticker_symbol)):
             os.makedirs(
                 '{0}/{1}/'.format(settings.RAW_DATA_PATH, self.ticker_symbol))
-        if settings.GET_XML:
-            if not os.path.exists('{0}/{1}/xml/10-Q/'.format(settings.RAW_DATA_PATH, self.ticker_symbol)):
-                os.makedirs(
-                    '{0}/{1}/xml/10-Q/'.format(settings.RAW_DATA_PATH, self.ticker_symbol))
-
-            if not os.path.exists('{0}/{1}/xml/10-K/'.format(settings.RAW_DATA_PATH, self.ticker_symbol)):
-                os.makedirs(
-                    '{0}/{1}/xml/10-K/'.format(settings.RAW_DATA_PATH, self.ticker_symbol))
-
         if settings.GET_HTML:
-            if not os.path.exists('{0}/{1}/html/10-Q/'.format(settings.RAW_DATA_PATH, self.ticker_symbol)):
-                os.makedirs(
-                    '{0}/{1}/html/10-Q/'.format(settings.RAW_DATA_PATH, self.ticker_symbol))
-
-            if not os.path.exists('{0}/{1}/html/10-K/'.format(settings.RAW_DATA_PATH, self.ticker_symbol)):
+            if not os.path.exists('{0}/{1}/html/10-K/'.format(
+                    settings.RAW_DATA_PATH, self.ticker_symbol)):
                 os.makedirs(
                     '{0}/{1}/html/10-K/'.format(settings.RAW_DATA_PATH, self.ticker_symbol))
-
-        if settings.GET_TXT:
-            if not os.path.exists('{0}/{1}/txt/10-K/'.format(settings.RAW_DATA_PATH, self.ticker_symbol)):
-                os.makedirs(
-                    '{0}/{1}/txt/10-K/'.format(settings.RAW_DATA_PATH, self.ticker_symbol))
-
-            if not os.path.exists('{0}/{1}/txt/10-Q/'.format(settings.RAW_DATA_PATH, self.ticker_symbol)):
-                os.makedirs(
-                    '{0}/{1}/txt/10-Q/'.format(settings.RAW_DATA_PATH, self.ticker_symbol))
-
-        if settings.GET_XL:
-            if not os.path.exists('{0}/{1}/xl/10-K/'.format(settings.RAW_DATA_PATH, self.ticker_symbol)):
-                os.makedirs(
-                    '{0}/{1}/xl/10-K/'.format(settings.RAW_DATA_PATH, self.ticker_symbol))
-
-            if not os.path.exists('{0}/{1}/xl/10-Q/'.format(settings.RAW_DATA_PATH, self.ticker_symbol)):
-                os.makedirs(
-                    '{0}/{1}/xl/10-Q/'.format(settings.RAW_DATA_PATH, self.ticker_symbol))
 
     def validate_page(self, html):
         try:
@@ -97,6 +68,11 @@ class GetFilings:
         return False
 
     def get_main_html(self, q_or_k):
+        '''Retrieves the URL for the SEC Document index for the symbol
+        Downloades the index html with requests
+        Throws html into beautiful soup -> validates the soup
+        If page valid, returns a soup object
+        '''
         link = settings.LINK_URL.format(self.ticker_symbol, q_or_k)
         r = requests.get(link)
         s = BS(r.text, "lxml")
@@ -107,20 +83,26 @@ class GetFilings:
 
 
     def get_10k_list(self):
+        '''Retrieves 10-K SEC document index as soup
+        Searches the soup for all relative paths for 10-K documents
+        Generates full document URL and pushes it onto filings['10k_list']
+        '''
         html = self.get_main_html('10-K')
         if html:
             for link in html.find_all('a', {'id': 'documentsbutton'}):
                 doc_url = 'https://www.sec.gov' + link['href']
                 self.filings['10k_list'].append(doc_url)
-            for link in html.find_all('a', {'id': 'interactiveDataBtn'}):
-                doc_url = 'https://www.sec.gov' + link['href']
-                self.filings['10k_xl_list'].append(doc_url)
+            # for link in html.find_all('a', {'id': 'interactiveDataBtn'}):
+            #     doc_url = 'https://www.sec.gov' + link['href']
+            #     self.filings['10k_xl_list'].append(doc_url)
 
     def get_html(self, html):
         s = BS(html, "lxml")
         try:
-            html_link = s.find_all('table', {'class': 'tableFile', 'summary': 'Document Format Files'})[
-                0].find_all('tr')[1].find('a')['href']
+            html_link = s.find_all('table', {
+                'class': 'tableFile',
+                'summary': 'Document Format Files'
+                })[0].find_all('tr')[1].find('a')['href']
             xtname = ['.html', '.htm']
             if os.path.splitext(html_link)[1] in xtname:
                 html_link = 'https://www.sec.gov' + html_link
@@ -130,7 +112,7 @@ class GetFilings:
                 return False
         except IndexError:
             return False
-    
+
     def get_date(self, html):
         # TODO Fix this unnecessary double calling of the soup
         s = BS(html, "lxml")
@@ -140,7 +122,7 @@ class GetFilings:
             return date
         except (IndexError, AttributeError):
             return False
-    
+
     def get_all_10k(self):
         if len(self.filings['10k_list']) == 0:
             try:
