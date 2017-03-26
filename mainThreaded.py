@@ -95,7 +95,7 @@ class ScrapeAndExtractThreaded:
                 }
                 self.xmlqueue.put(filing)
         except ET.ParseError:
-            continue
+            pass
             # print("Invalid Symbol: {}\t{}".format(symbol, link))
         # self.xmlqueue.put(company)
 
