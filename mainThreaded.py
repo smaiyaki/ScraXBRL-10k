@@ -213,13 +213,13 @@ def run_main_threaded():
             threading.Thread.__init__(self)
             self.name = name
             self.xml_queue = xml_queue
-            self.download_queue = download_queue
+            # self.download_queue = download_queue
 
         def run(self):
             while True:
                 # Grabs symbol from queue
                 filing = self.xml_queue.get()
-                print("\t{} Index Queue".format(self.xml_queue.qsize()))
+                # print("\t{} Index Queue".format(self.xml_queue.qsize()))
                 # Runs the symbol scraper to generate download urls and filepath
                 sc.get_download_link(filing)
                 self.xml_queue.task_done()
@@ -239,7 +239,7 @@ def run_main_threaded():
                 # print(download_info)
                 download_url, download_path = download_info
                 wget.download(download_url, download_path)
-                print("\t{} Symbol\t{} XML\t{} Download".format(
+                print("\t\t{} Symbol\t{} XML\t{} Download".format(
                     self.symbol_queue.qsize(),
                     self.xml_queue.qsize(),
                     self.download_queue.qsize()))
@@ -277,7 +277,7 @@ def run_main_threaded():
     #     print("Starting Filings thread #{}".format(i+1))
 
     print("Main Thread - Starting Download Thread Pool")
-    for i in range(4):
+    for i in range(5):
         download_thread_name = "DownloadThread-[{}]".format(i+1)
         dt = DownloadThread(download_thread_name, symbolqueue, xmlqueue, downloadqueue)
         dt.setDaemon(True)
@@ -298,10 +298,27 @@ def run_main_threaded():
     print("The XML Thread Pool has closed sucessfully I hope.... The time is {}".format(time_symbolqueue_close))
     
 
+    print("Main Thread - ADDING MORE Index Scrape Thread Pool")
+    for i in range(5,10):
+        ix_thread_name = "IndexScrapeThread-[{}]".format(i+1)
+        ix = IndexScrapeThread(ix_thread_name, xmlqueue, downloadqueue)
+        ix.setDaemon(True)
+        ix.start()
+        print("Starting IndexScrape thread #{}".format(i+1))
+
     xmlqueue.join()
     time_indexscrapequeue_close = datetime.now()
-    print("The XML Thread Pool has closed sucessfully I hope.... The time is {}".format(time_indexscrapequeue_close))
+    print("The Index Scrape Thread Pool has closed sucessfully I hope.... The time is {}".format(time_indexscrapequeue_close))
 
+
+    print("Main Thread - ADDING MORE Download Thread Pool")
+    for i in range(5,10):
+        download_thread_name = "DownloadThread-[{}]".format(i+1)
+        dt = DownloadThread(download_thread_name, symbolqueue, xmlqueue, downloadqueue)
+        dt.setDaemon(True)
+        print("Starting Download thread #{}".format(i+1))
+        dt.start()
+        
     downloadqueue.join()
     time_downloadqueue_close = datetime.now()
     print("The download queue has completed successfully. I hope. Everything is actually okay")
