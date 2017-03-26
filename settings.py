@@ -90,7 +90,7 @@ OUTPUT_JSON = False
 LINK_URL = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={0}&type={1}&dateb=&owner=exclude&count=100"
 
 
-
+RSS_XML_URL = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={0}&type={1}&dateb=&owner=exclude&start=0&count=100&output=atom"
 
 
 

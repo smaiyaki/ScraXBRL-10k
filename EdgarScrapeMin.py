@@ -42,7 +42,7 @@ class GetFilings:
         }
         print('Scraping {0}'.format(self.ticker_symbol))
         # print('Getting 10-K list...')
-        self.get_10k_list()
+        # self.get_10k_list()
         # print('Getting 10-K files...')
         self.get_all_10k()
         # print('Generating downloads for all files...')
@@ -80,6 +80,8 @@ class GetFilings:
             return s
         else:
             return False
+
+    
 
 
     def get_10k_list(self):
@@ -138,6 +140,7 @@ class GetFilings:
             # for link_val in tqdm(self.filings['10k_list'], desc="10_klist"):
             r = requests.get(link_val)
             html_txt = r.text
+
             date = self.get_date(html_txt)
             dates.append(date)
             success[date] = []
@@ -156,8 +159,6 @@ class GetFilings:
                     except (KeyError, AttributeError):
                         errors[date] = []
                         errors[date].append('html')
-
-
 
         if len(errors) > 0:
             self.filings['errors']['count'] += 1
@@ -188,3 +189,69 @@ class GetFilings:
                     # print("Download Request", download_request)
                     # urllib.request.urlretrieve(
                     #     link[0], '{0}{1}'.format(diry, fname))
+
+
+# import xml.etree.cElementTree as ET
+
+# root = ET.fromstring(r.content)
+# ns = {'role': 'http://www.w3.org/2005/Atom'}
+
+# for entry in root.findall('role:entry/./role:content', ns):
+#     filing_date = entry.find('role:filing-date', ns).text
+#     filing_href = entry.find('role:filing-href', ns).text
+
+# root = ET.fromstring(r.content)
+# ns = {'role': 'http://www.w3.org/2005/Atom'}
+# company = {'symbol': symbol, 'filings': []}
+# for entry in root.findall('role:entry/./role:content', ns):
+#     company['filings'].append({
+#         'date': entry.find('role:filing-date', ns).text,
+#         'href': entry.find('role:filing-href', ns).text
+#     })
+# xmlqueue.put(company)
+
+
+# for i in range(5):
+#     xml_thread_name = "XMLThread-[{}]".format(i+1)
+#     xt = XMLThread(xml_thread_name, symbolqueue, xmlqueue)
+#     xt.setDaemon(True)
+#     xt.start()
+#     print("Starting XML thread #{}".format(i+1))
+
+# for i in range(2):
+#     xml_print_thread_name = "XMLPrintThread-[{}]".format(i+1)
+#     xpt = XMLPrintThread(xml_print_thread_name, xmlqueue)
+#     xpt.setDaemon(True)
+#     xpt.start()
+#     print("Starting XML Print Thread #{}".format(i+1))
+
+
+
+# class XMLThread(threading.Thread):
+#     '''Gathers links from xml urls
+#     Puts {symbol, date, filingurl} on filing scrape queue'''
+#     def __init__(self, name, symbol_queue, xml_queue):
+#         threading.Thread.__init__(self)
+#         self.name = name
+#         self.symbol_queue = symbol_queue
+#         self.xml_queue = xml_queue
+
+#     def run(self):
+#         while True:
+#             symbol = self.symbol_queue.get()
+#             sc.scrape_xml_index(symbol)
+#             self.symbol_queue.task_done()
+
+# class XMLPrintThread(threading.Thread):
+#     '''Gathers links from xml urls
+#     Puts {symbol, date, filingurl} on filing scrape queue'''
+#     def __init__(self, name, xml_queue):
+#         threading.Thread.__init__(self)
+#         self.name = name
+#         self.xml_queue = xml_queue
+
+#     def run(self):
+#         while True:
+#             company = self.xml_queue.get()
+#             print("{}\t{} Left in XML Queue".format(company, self.xml_queue.qsize()))
+#             self.xml_queue.task_done()
