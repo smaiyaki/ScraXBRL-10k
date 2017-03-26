@@ -120,6 +120,7 @@ def run_main_threaded():
             while True:
                 # Grabs symbol from queue
                 symbol = self.symbol_queue.get()
+                print("{} Left in Scrape Queue".format(self.symbol_queue.qsize()))
                 # Runs the symbol scraper to generate download urls and filepath
                 sc.scrape_symbol(symbol, self.download_queue)
                 self.symbol_queue.task_done()
@@ -141,7 +142,7 @@ def run_main_threaded():
 
 
     print("Main Thread - Starting Filings Thread Pool")
-    for i in range(5):
+    for i in range(8):
         filing_thread_name = "FilingThread-[{}]".format(i+1)
         t = FilingsThread(filing_thread_name, symbolqueue, downloadqueue)
         t.setDaemon(True)
@@ -149,7 +150,7 @@ def run_main_threaded():
         print("Starting Filings thread #{}".format(i))
 
     print("Main Thread - Download Thread Pool")
-    for i in range(5):
+    for i in range(2):
         download_thread_name = "DownloadThread-[{}]".format(i+1)
         dt = DownloadThread(download_thread_name, downloadqueue)
         dt.setDaemon(True)

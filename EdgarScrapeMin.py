@@ -41,11 +41,11 @@ class GetFilings:
             }
         }
         print('Scraping {0}'.format(self.ticker_symbol))
-        print('Getting 10-K list...')
+        # print('Getting 10-K list...')
         self.get_10k_list()
-        print('Getting 10-K files...')
+        # print('Getting 10-K files...')
         self.get_all_10k()
-        print('Generating downloads for all files...')
+        # print('Generating downloads for all files...')
         self.download_all()
 
     def create_folders(self):
@@ -124,7 +124,7 @@ class GetFilings:
             xtname = ['.html', '.htm']
             if os.path.splitext(html_link)[1] in xtname:
                 html_link = 'https://www.sec.gov' + html_link
-                print(html_link)
+                # print(html_link)
                 return html_link
             else:
                 return False
@@ -203,6 +203,6 @@ class GetFilings:
                 if not self.check_duplicate(diry, fname):
                     download_request = (link[0], '{0}{1}'.format(diry, fname))
                     self.download_queue.put(download_request)
-                    print("Download Request", download_request)
+                    # print("Download Request", download_request)
                     # urllib.request.urlretrieve(
                     #     link[0], '{0}{1}'.format(diry, fname))
