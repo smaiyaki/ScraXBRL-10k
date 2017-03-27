@@ -333,7 +333,7 @@ def run_main_threaded():
                 # print(download_info)
                 download_url, download_path, download_entity = download_info
                 wget.download(download_url, download_path)
-                sc.mark_downloaded(download_entity)
+                # sc.mark_downloaded(download_entity)
                 print("\t\t{} Symbol\t{} XML\t{} Download".format(
                     self.symbol_queue.qsize(),
                     self.xml_queue.qsize(),
