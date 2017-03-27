@@ -111,6 +111,18 @@ class ScrapeAndExtractThreaded:
         self.client.put(download)
         return download.key
 
+    def mark_downloaded(self, download_key):
+        with self.client.transaction():
+            # key = self.client.key(download_key)
+            download = self.client.get(download_key)
+
+            if not download:
+                raise ValueError(
+                    'Download {} does not exist.'.format(download_key))
+
+            download['downloaded'] = True
+            self.client.put(download)
+
     def populate_symbol_keys(self):
         '''Grab all the keys from file'''
         for xlist in self.stock_lists:
@@ -151,17 +163,17 @@ class ScrapeAndExtractThreaded:
             root = ET.fromstring(r.content)
             ns = {'role': 'http://www.w3.org/2005/Atom'}
             company_entity = self.add_company(symbol, link, rss_valid=True)
-            filings = []
+            # filings = []
             for entry in root.findall('role:entry/./role:content', ns):
                 filing = {
                     'symbol': symbol,
                     'date': entry.find('role:filing-date', ns).text,
                     'index_href': entry.find('role:filing-href', ns).text
                 }
-                filings.append(filing)
-                # filing_entity = self.add_filing(**filing)
+                # filings.append(filing)
+                filing_entity = self.add_filing(return_filing=False, **filing)
                 self.xmlqueue.put(filing)
-            filing_batch_entities = self.add_batch_filings(filings)
+            # filing_batch_entities = self.add_batch_filings(filings)
         except ET.ParseError:
             company_entity = self.add_company(symbol, link, rss_valid=False)
             # print("Invalid Symbol: {}\t{}".format(symbol, link))
@@ -197,9 +209,21 @@ class ScrapeAndExtractThreaded:
         diry = '{0}/{1}/html/10-K/{2}/'.format(
             settings.RAW_DATA_PATH, filing['symbol'], filing['date'])
         if not os.path.exists(diry):
-            os.makedirs(diry)
+            try:
+                os.makedirs(diry)
+            except:
+                print("Unexpected error: {}".format(sys.exc_info()[0]))
+
         if not self.check_duplicate(diry, fname):
-            download_request = (filing['download_href'], '{0}{1}'.format(diry, fname))
+            filing.update({'filepath': diry, 'filename': fname})
+            download_entity = self.add_download(
+                symbol=filing['symbol'],
+                date=filing['date'],
+                download_href=filing['download_href'],
+                filepath=filing['filepath'],
+                filename=filing['filename']
+            )
+            download_request = (filing['download_href'], '{0}{1}'.format(diry, fname), download_entity)
             self.download_queue.put(download_request)
 
     def queue_scrape_list(self):
@@ -223,7 +247,7 @@ def run_main_threaded():
     symbolqueue = queue.Queue()
     xmlqueue = queue.Queue()
     downloadqueue = queue.Queue()
-    logqueue = queue.Queue()
+    # logqueue = queue.Queue()
     sc = ScrapeAndExtractThreaded(symbolqueue, xmlqueue, downloadqueue)
 
     class XMLThread(threading.Thread):
@@ -239,7 +263,7 @@ def run_main_threaded():
             while True:
                 symbol = self.symbol_queue.get()
                 sc.scrape_xml_index(symbol)
-                logqueue.put("Symbol")
+                # logqueue.put("Symbol")
                 self.symbol_queue.task_done()
 
 
@@ -299,20 +323,21 @@ def run_main_threaded():
         def __init__(self, name, symbol_queue, xml_queue, download_queue):
             threading.Thread.__init__(self)
             self.name = name
-            # self.symbol_queue = symbol_queue
-            # self.xml_queue = xml_queue
+            self.symbol_queue = symbol_queue
+            self.xml_queue = xml_queue
             self.download_queue = download_queue
 
         def run(self):
             while True:
                 download_info = self.download_queue.get()
                 # print(download_info)
-                download_url, download_path = download_info
+                download_url, download_path, download_entity = download_info
                 wget.download(download_url, download_path)
-                # print("\t\t{} Symbol\t{} XML\t{} Download".format(
-                #     self.symbol_queue.qsize(),
-                #     self.xml_queue.qsize(),
-                #     self.download_queue.qsize()))
+                sc.mark_downloaded(download_entity)
+                print("\t\t{} Symbol\t{} XML\t{} Download".format(
+                    self.symbol_queue.qsize(),
+                    self.xml_queue.qsize(),
+                    self.download_queue.qsize()))
                 self.download_queue.task_done()
 
     class LogThread(threading.Thread):
@@ -324,29 +349,28 @@ def run_main_threaded():
             self.xml_queue = xml_queue
             self.download_queue = download_queue
             self.log_queue = log_queue
-            
 
         def run(self):
             while True:
-                toprint = self.log_queue.get()
-                print("[{}]: \t{} Symbol\t{} XML\t{} Download\tLOG: {}".format(
+                # toprint = self.log_queue.get()
+                print("[{}]: \t{} Symbol\t{} XML\t{} Download\tLOG:".format(
                     datetime.utcnow(),
                     self.symbol_queue.qsize(),
                     self.xml_queue.qsize(),
-                    self.download_queue.qsize(),
-                    toprint
+                    self.download_queue.qsize()
+                    # toprint
                     ))
-                self.log_queue.task_done()
+                # self.log_queue.task_done()
 
-    log_thread = LogThread(
-        "Log_Thread",
-        symbolqueue,
-        xmlqueue,
-        downloadqueue,
-        logqueue
-        )
-    log_thread.setDaemon(True)
-    log_thread.start()
+    # log_thread = LogThread(
+    #     "Log_Thread",
+    #     symbolqueue,
+    #     xmlqueue,
+    #     downloadqueue,
+    #     logqueue
+    #     )
+    # log_thread.setDaemon(True)
+    # log_thread.start()
 
 
     print("Main Thread - Starting XML Scrape Thread Pool")
@@ -373,17 +397,17 @@ def run_main_threaded():
         print("Starting IndexScrape thread #{}".format(i+1))
 
     print("Main Thread - Starting Download Thread Pool")
-    # for i in range(5):
-    #     download_thread_name = "DownloadThread-[{}]".format(i+1)
-    #     dt = DownloadThread(
-    #         download_thread_name,
-    #         symbolqueue,
-    #         xmlqueue,
-    #         downloadqueue
-    #         )
-    #     dt.setDaemon(True)
-    #     print("Starting Download thread #{}".format(i+1))
-    #     dt.start()
+    for i in range(5):
+        download_thread_name = "DownloadThread-[{}]".format(i+1)
+        dt = DownloadThread(
+            download_thread_name,
+            symbolqueue,
+            xmlqueue,
+            downloadqueue
+            )
+        dt.setDaemon(True)
+        print("Starting Download thread #{}".format(i+1))
+        dt.start()
 
     sc.queue_scrape_list()
 
@@ -398,29 +422,28 @@ def run_main_threaded():
 
     print("XML Thread Pool closed: The time is {}".format(time_symbolqueue_close))
 
-    # print("Main Thread - ADDING MORE Index Scrape Thread Pool")
-    # for i in range(5, 10):
-    #     ix_thread_name = "IndexScrapeThread-[{}]".format(i+1)
-    #     ix = IndexScrapeThread(ix_thread_name, xmlqueue, downloadqueue)
-    #     ix.setDaemon(True)
-    #     ix.start()
-    #     print("Starting IndexScrape thread #{}".format(i+1))
+    print("Main Thread - ADDING MORE Index Scrape Thread Pool")
+    for i in range(5, 10):
+        ix_thread_name = "IndexScrapeThread-[{}]".format(i+1)
+        ix = IndexScrapeThread(ix_thread_name, xmlqueue, downloadqueue)
+        ix.setDaemon(True)
+        ix.start()
+        print("Starting IndexScrape thread #{}".format(i+1))
 
     xmlqueue.join()
     time_indexscrapequeue_close = datetime.now()
     print("Index Scrape Thread Pool closed: The time is {}".format(time_indexscrapequeue_close))
 
-
-    # print("Main Thread - ADDING MORE Download Thread Pool")
-    # for i in range(5, 10):
-    #     download_thread_name = "DownloadThread-[{}]".format(i+1)
-    #     dt = DownloadThread(download_thread_name, symbolqueue, xmlqueue, downloadqueue)
-    #     dt.setDaemon(True)
-    #     print("Starting Download thread #{}".format(i+1))
-    #     dt.start()
+    print("Main Thread - ADDING MORE Download Thread Pool")
+    for i in range(5, 10):
+        download_thread_name = "DownloadThread-[{}]".format(i+1)
+        dt = DownloadThread(download_thread_name, symbolqueue, xmlqueue, downloadqueue)
+        dt.setDaemon(True)
+        print("Starting Download thread #{}".format(i+1))
+        dt.start()
 
     downloadqueue.join()
-    logqueue.join()
+    # logqueue.join()
     time_downloadqueue_close = datetime.now()
     print("The download queue has completed successfully")
     print("The time is {}".format(time_downloadqueue_close))
