@@ -19,10 +19,16 @@ from datetime import datetime
 import xml.etree.cElementTree as ET
 from bs4 import BeautifulSoup as BS
 
+from google.cloud import datastore
+
 # import sys
 # sys.path.append('/Applications/PyVmMonitor.app/Contents/MacOS/public_api')
 # import pyvmmonitor
 # @pyvmmonitor.profile_method
+
+
+def create_client(project_id):
+    return datastore.Client(project_id)
 
 
 
@@ -47,6 +53,63 @@ class ScrapeAndExtractThreaded:
         # self.get_all_keys()
         self.scraped_keys = []
         self.extracted_keys = []
+        self.client = self.create_client(settings.GCLOUD_PROJECT_ID)
+
+    def create_client(self, project_id):
+        return datastore.Client(project_id)
+
+    def add_company(self, symbol, rss_url, rss_valid):
+        key = self.client.key('Company', symbol)
+        company = datastore.Entity(key)
+        company.update({
+            'symbol': symbol,
+            'rss_url': rss_url,
+            'rss_valid': rss_valid,
+            'date_created': datetime.utcnow()
+        })
+        self.client.put(company)
+        return company.key
+
+    def add_filing(self, return_filing, symbol, date, index_href):
+        parent_key = self.client.key('Company', symbol)
+        key = self.client.key('Filing', date, parent=parent_key)
+        filing = datastore.Entity(key)
+        filing.update({
+            'symbol': symbol,
+            'date': date,
+            'index_href': index_href,
+            'index_scraped': False,
+            'date_created': datetime.utcnow()
+        })
+        if not return_filing:
+            self.client.put(filing)
+            return filing.key
+        else:
+            return filing
+
+    def add_batch_filings(self, filings):
+        filing_batch = [
+            self.add_filing(return_filing=True, **filing) for filing in filings
+            ]
+        self.client.put_multi(filing_batch)
+        return filing_batch
+
+    def add_download(self, symbol, date, download_href, filepath, filename):
+        parent_key = self.client.key('Company', symbol, 'Filing', date)
+        key = self.client.key('Download', parent=parent_key)
+        download = datastore.Entity(key)
+        download.update({
+            'symbol': symbol,
+            'date': date,
+            'download_href': download_href,
+            'filepath': filepath,
+            'filename': filename,
+            'dir_created': False,
+            'downloaded': False,
+            'date_created': datetime.utcnow()
+        })
+        self.client.put(download)
+        return download.key
 
     def populate_symbol_keys(self):
         '''Grab all the keys from file'''
@@ -87,21 +150,26 @@ class ScrapeAndExtractThreaded:
         try:
             root = ET.fromstring(r.content)
             ns = {'role': 'http://www.w3.org/2005/Atom'}
+            company_entity = self.add_company(symbol, link, rss_valid=True)
+            filings = []
             for entry in root.findall('role:entry/./role:content', ns):
                 filing = {
                     'symbol': symbol,
                     'date': entry.find('role:filing-date', ns).text,
-                    'href': entry.find('role:filing-href', ns).text
+                    'index_href': entry.find('role:filing-href', ns).text
                 }
+                filings.append(filing)
+                # filing_entity = self.add_filing(**filing)
                 self.xmlqueue.put(filing)
+            filing_batch_entities = self.add_batch_filings(filings)
         except ET.ParseError:
-            pass
+            company_entity = self.add_company(symbol, link, rss_valid=False)
             # print("Invalid Symbol: {}\t{}".format(symbol, link))
         # self.xmlqueue.put(company)
 
     def get_download_link(self, filing):
         filing_download = filing
-        r = requests.get(filing_download['href'])
+        r = requests.get(filing_download['index_href'])
         s = BS(r.text, "lxml")
         try:
             html_link = s.find_all('table', {
@@ -111,7 +179,7 @@ class ScrapeAndExtractThreaded:
             xtname = ['.html', '.htm']
             if os.path.splitext(html_link)[1] in xtname:
                 html_link = 'https://www.sec.gov' + html_link
-                filing_download['download'] = html_link
+                filing_download['download_href'] = html_link
                 self.queue_download(filing_download)
             else:
                 return False
@@ -131,7 +199,7 @@ class ScrapeAndExtractThreaded:
         if not os.path.exists(diry):
             os.makedirs(diry)
         if not self.check_duplicate(diry, fname):
-            download_request = (filing['download'], '{0}{1}'.format(diry, fname))
+            download_request = (filing['download_href'], '{0}{1}'.format(diry, fname))
             self.download_queue.put(download_request)
 
     def queue_scrape_list(self):
@@ -155,6 +223,7 @@ def run_main_threaded():
     symbolqueue = queue.Queue()
     xmlqueue = queue.Queue()
     downloadqueue = queue.Queue()
+    logqueue = queue.Queue()
     sc = ScrapeAndExtractThreaded(symbolqueue, xmlqueue, downloadqueue)
 
     class XMLThread(threading.Thread):
@@ -170,6 +239,7 @@ def run_main_threaded():
             while True:
                 symbol = self.symbol_queue.get()
                 sc.scrape_xml_index(symbol)
+                logqueue.put("Symbol")
                 self.symbol_queue.task_done()
 
 
@@ -229,8 +299,8 @@ def run_main_threaded():
         def __init__(self, name, symbol_queue, xml_queue, download_queue):
             threading.Thread.__init__(self)
             self.name = name
-            self.symbol_queue = symbol_queue
-            self.xml_queue = xml_queue
+            # self.symbol_queue = symbol_queue
+            # self.xml_queue = xml_queue
             self.download_queue = download_queue
 
         def run(self):
@@ -239,16 +309,53 @@ def run_main_threaded():
                 # print(download_info)
                 download_url, download_path = download_info
                 wget.download(download_url, download_path)
-                print("\t\t{} Symbol\t{} XML\t{} Download".format(
+                # print("\t\t{} Symbol\t{} XML\t{} Download".format(
+                #     self.symbol_queue.qsize(),
+                #     self.xml_queue.qsize(),
+                #     self.download_queue.qsize()))
+                self.download_queue.task_done()
+
+    class LogThread(threading.Thread):
+        '''Prints out all the good logs'''
+        def __init__(self, name, symbol_queue, xml_queue, download_queue, log_queue):
+            threading.Thread.__init__(self)
+            self.name = name
+            self.symbol_queue = symbol_queue
+            self.xml_queue = xml_queue
+            self.download_queue = download_queue
+            self.log_queue = log_queue
+            
+
+        def run(self):
+            while True:
+                toprint = self.log_queue.get()
+                print("[{}]: \t{} Symbol\t{} XML\t{} Download\tLOG: {}".format(
+                    datetime.utcnow(),
                     self.symbol_queue.qsize(),
                     self.xml_queue.qsize(),
-                    self.download_queue.qsize()))
-                self.download_queue.task_done()
+                    self.download_queue.qsize(),
+                    toprint
+                    ))
+                self.log_queue.task_done()
+
+    log_thread = LogThread(
+        "Log_Thread",
+        symbolqueue,
+        xmlqueue,
+        downloadqueue,
+        logqueue
+        )
+    log_thread.setDaemon(True)
+    log_thread.start()
+
 
     print("Main Thread - Starting XML Scrape Thread Pool")
     for i in range(5):
         xml_thread_name = "XMLThread-[{}]".format(i+1)
-        xt = XMLThread(xml_thread_name, symbolqueue)
+        xt = XMLThread(
+            xml_thread_name,
+            symbolqueue
+            )
         xt.setDaemon(True)
         xt.start()
         print("Starting XML thread #{}".format(i+1))
@@ -256,72 +363,66 @@ def run_main_threaded():
     print("Main Thread - Starting Index Scrape Thread Pool")
     for i in range(5):
         ix_thread_name = "IndexScrapeThread-[{}]".format(i+1)
-        ix = IndexScrapeThread(ix_thread_name, xmlqueue, downloadqueue)
+        ix = IndexScrapeThread(
+            ix_thread_name,
+            xmlqueue,
+            downloadqueue
+            )
         ix.setDaemon(True)
         ix.start()
         print("Starting IndexScrape thread #{}".format(i+1))
 
-    # for i in range(2):
-    #     xml_print_thread_name = "XMLPrintThread-[{}]".format(i+1)
-    #     xpt = XMLPrintThread(xml_print_thread_name, xmlqueue)
-    #     xpt.setDaemon(True)
-    #     xpt.start()
-    #     print("Starting XML Print Thread #{}".format(i+1))
-
-    # print("Main Thread - Starting Filings Thread Pool")
-    # for i in range(8):
-    #     filing_thread_name = "FilingThread-[{}]".format(i+1)
-    #     t = FilingsThread(filing_thread_name, symbolqueue, downloadqueue)
-    #     t.setDaemon(True)
-    #     t.start()
-    #     print("Starting Filings thread #{}".format(i+1))
-
     print("Main Thread - Starting Download Thread Pool")
-    for i in range(5):
-        download_thread_name = "DownloadThread-[{}]".format(i+1)
-        dt = DownloadThread(download_thread_name, symbolqueue, xmlqueue, downloadqueue)
-        dt.setDaemon(True)
-        print("Starting Download thread #{}".format(i+1))
-        dt.start()
+    # for i in range(5):
+    #     download_thread_name = "DownloadThread-[{}]".format(i+1)
+    #     dt = DownloadThread(
+    #         download_thread_name,
+    #         symbolqueue,
+    #         xmlqueue,
+    #         downloadqueue
+    #         )
+    #     dt.setDaemon(True)
+    #     print("Starting Download thread #{}".format(i+1))
+    #     dt.start()
 
     sc.queue_scrape_list()
 
     # symbolqueue.join()
-    
+
 
     timestart = datetime.now()
     print("The game has begun. The time is {}".format(timestart))
     symbolqueue.join()
 
     time_symbolqueue_close = datetime.now()
-    
-    print("The XML Thread Pool has closed sucessfully I hope.... The time is {}".format(time_symbolqueue_close))
-    
 
-    print("Main Thread - ADDING MORE Index Scrape Thread Pool")
-    for i in range(5,10):
-        ix_thread_name = "IndexScrapeThread-[{}]".format(i+1)
-        ix = IndexScrapeThread(ix_thread_name, xmlqueue, downloadqueue)
-        ix.setDaemon(True)
-        ix.start()
-        print("Starting IndexScrape thread #{}".format(i+1))
+    print("XML Thread Pool closed: The time is {}".format(time_symbolqueue_close))
+
+    # print("Main Thread - ADDING MORE Index Scrape Thread Pool")
+    # for i in range(5, 10):
+    #     ix_thread_name = "IndexScrapeThread-[{}]".format(i+1)
+    #     ix = IndexScrapeThread(ix_thread_name, xmlqueue, downloadqueue)
+    #     ix.setDaemon(True)
+    #     ix.start()
+    #     print("Starting IndexScrape thread #{}".format(i+1))
 
     xmlqueue.join()
     time_indexscrapequeue_close = datetime.now()
-    print("The Index Scrape Thread Pool has closed sucessfully I hope.... The time is {}".format(time_indexscrapequeue_close))
+    print("Index Scrape Thread Pool closed: The time is {}".format(time_indexscrapequeue_close))
 
 
-    print("Main Thread - ADDING MORE Download Thread Pool")
-    for i in range(5,10):
-        download_thread_name = "DownloadThread-[{}]".format(i+1)
-        dt = DownloadThread(download_thread_name, symbolqueue, xmlqueue, downloadqueue)
-        dt.setDaemon(True)
-        print("Starting Download thread #{}".format(i+1))
-        dt.start()
-        
+    # print("Main Thread - ADDING MORE Download Thread Pool")
+    # for i in range(5, 10):
+    #     download_thread_name = "DownloadThread-[{}]".format(i+1)
+    #     dt = DownloadThread(download_thread_name, symbolqueue, xmlqueue, downloadqueue)
+    #     dt.setDaemon(True)
+    #     print("Starting Download thread #{}".format(i+1))
+    #     dt.start()
+
     downloadqueue.join()
+    logqueue.join()
     time_downloadqueue_close = datetime.now()
-    print("The download queue has completed successfully. I hope. Everything is actually okay")
+    print("The download queue has completed successfully")
     print("The time is {}".format(time_downloadqueue_close))
     print("Time elapsed is {}".format(time_downloadqueue_close - timestart))
     print("Happy pipelining you filthy worms")
